@@ -20,12 +20,11 @@ app.post('/api/sandbox', async (req, res) => {
     
     console.log(`🚀 Creating sandbox with template: ${template}`);
     const sandbox = await sdk.sandboxes.create({
-      template,
+      template: template as any, // SDK type mismatch workaround
       privacy: 'public',
-    });
+    } as any);
     console.log(`✅ Sandbox created, ID: ${sandbox.id}`);
     
-    // CRITICAL: Wait for the VM to be fully provisioned
     console.log('⏳ Waiting 5 seconds for VM to initialize...');
     await new Promise(resolve => setTimeout(resolve, 5000));
     
@@ -33,18 +32,16 @@ app.post('/api/sandbox', async (req, res) => {
     const client = await sandbox.connect();
     console.log('✅ Connected');
 
-    // Write files
     if (files && Object.keys(files).length > 0) {
       console.log(`📝 Writing ${Object.keys(files).length} files...`);
       const writeOps = Object.entries(files).map(([path, file]) => ({
         path,
-        content: file.content,
+        content: (file as any).content,
       }));
       await client.fs.batchWrite(writeOps);
       console.log('✅ Files written');
     }
 
-    // Determine project type and start server
     const hasPackageJson = files && files['package.json'];
     let previewPort = 3000;
     
@@ -52,7 +49,7 @@ app.post('/api/sandbox', async (req, res) => {
       console.log('📦 Installing dependencies...');
       await client.commands.run('npm install');
       
-      const pkg = JSON.parse(files!['package.json'].content);
+      const pkg = JSON.parse((files!['package.json'] as any).content);
       let startCommand = 'npm start';
       if (pkg.scripts?.dev) startCommand = 'npm run dev';
       else if (pkg.scripts?.start) startCommand = 'npm start';
@@ -64,7 +61,7 @@ app.post('/api/sandbox', async (req, res) => {
       for (const p of portsToTry) {
         try {
           console.log(`⏳ Waiting for port ${p}...`);
-          await client.ports.waitForPort(p, { timeout: 20000 });
+          await client.ports.waitForPort(p, { timeoutMs: 20000 });
           previewPort = p;
           console.log(`✅ Port ${p} is ready`);
           break;
@@ -75,7 +72,7 @@ app.post('/api/sandbox', async (req, res) => {
     } else {
       console.log('📄 Static project – using npx serve...');
       client.commands.runBackground('npx --yes serve . -l 3000');
-      await client.ports.waitForPort(3000, { timeout: 30000 });
+      await client.ports.waitForPort(3000, { timeoutMs: 30000 });
       previewPort = 3000;
     }
 
