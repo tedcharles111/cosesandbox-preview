@@ -1,0 +1,16 @@
+{
+  "name": "sandbox-preview-engine",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "server": "pnpm --filter server dev",
+    "client": "pnpm --filter client dev",
+    "dev": "pnpm --parallel --filter './packages/*' dev"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.23.0"
+}
