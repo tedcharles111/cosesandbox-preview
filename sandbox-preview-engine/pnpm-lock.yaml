@@ -68,9 +68,6 @@ importers:
       express:
         specifier: ^5.2.1
         version: 5.2.1
-      shared:
-        specifier: link:../shared
-        version: link:../shared
     devDependencies:
       '@types/cors':
         specifier: ^2.8.19

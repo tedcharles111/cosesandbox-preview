@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "build": "cd ../shared && pnpm run build && cd ../server && tsc"
+    "build": "tsc"
   },
   "keywords": [],
   "author": "",
@@ -16,8 +16,7 @@
     "@codesandbox/sdk": "^2.4.2",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "shared": "link:../shared"
+    "express": "^5.2.1"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",

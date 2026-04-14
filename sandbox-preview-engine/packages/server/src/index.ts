@@ -2,7 +2,6 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { CodeSandbox } from '@codesandbox/sdk';
-import type { CreateSandboxRequest, CreateSandboxResponse } from 'shared';
 
 dotenv.config();
 
@@ -14,13 +13,18 @@ app.use(express.json({ limit: '50mb' }));
 
 const sdk = new CodeSandbox(process.env.CSB_API_KEY!);
 
+interface CreateSandboxRequest {
+  files?: Record<string, { content: string }>;
+  template?: string;
+}
+
 app.post('/api/sandbox', async (req, res) => {
   try {
     const { files, template = 'node' } = req.body as CreateSandboxRequest;
     
     console.log(`🚀 Creating sandbox with template: ${template}`);
     const sandbox = await sdk.sandboxes.create({
-      template: template as any, // SDK type mismatch workaround
+      template: template as any,
       privacy: 'public',
     } as any);
     console.log(`✅ Sandbox created, ID: ${sandbox.id}`);
@@ -36,7 +40,7 @@ app.post('/api/sandbox', async (req, res) => {
       console.log(`📝 Writing ${Object.keys(files).length} files...`);
       const writeOps = Object.entries(files).map(([path, file]) => ({
         path,
-        content: (file as any).content,
+        content: file.content,
       }));
       await client.fs.batchWrite(writeOps);
       console.log('✅ Files written');
@@ -49,7 +53,7 @@ app.post('/api/sandbox', async (req, res) => {
       console.log('📦 Installing dependencies...');
       await client.commands.run('npm install');
       
-      const pkg = JSON.parse((files!['package.json'] as any).content);
+      const pkg = JSON.parse(files!['package.json'].content);
       let startCommand = 'npm start';
       if (pkg.scripts?.dev) startCommand = 'npm run dev';
       else if (pkg.scripts?.start) startCommand = 'npm start';
