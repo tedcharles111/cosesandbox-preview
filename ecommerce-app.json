@@ -1,0 +1,50 @@
+{
+  "template": "node",
+  "files": {
+    "package.json": {
+      "content": "{\n  \"name\": \"ecommerce-dashboard\",\n  \"private\": true,\n  \"version\": \"0.0.0\",\n  \"type\": \"module\",\n  \"scripts\": {\n    \"dev\": \"concurrently \\\"npm run server\\\" \\\"npm run client\\\"\",\n    \"server\": \"node server.js\",\n    \"client\": \"vite\"\n  },\n  \"dependencies\": {\n    \"express\": \"^4.18.2\",\n    \"cors\": \"^2.8.5\",\n    \"react\": \"^18.2.0\",\n    \"react-dom\": \"^18.2.0\",\n    \"react-router-dom\": \"^6.14.0\",\n    \"zustand\": \"^4.3.9\"\n  },\n  \"devDependencies\": {\n    \"@vitejs/plugin-react\": \"^4.0.0\",\n    \"vite\": \"^4.3.9\",\n    \"concurrently\": \"^8.0.1\",\n    \"typescript\": \"^5.0.2\",\n    \"@types/react\": \"^18.2.14\",\n    \"@types/react-dom\": \"^18.2.6\"\n  }\n}"
+    },
+    "vite.config.ts": {
+      "content": "import { defineConfig } from 'vite'\nimport react from '@vitejs/plugin-react'\n\nexport default defineConfig({\n  plugins: [react()],\n  server: {\n    port: 5173,\n    allowedHosts: true,\n    proxy: {\n      '/api': 'http://localhost:3001'\n    }\n  }\n})"
+    },
+    "tsconfig.json": {
+      "content": "{\n  \"compilerOptions\": {\n    \"target\": \"ES2020\",\n    \"useDefineForClassFields\": true,\n    \"lib\": [\"ES2020\", \"DOM\", \"DOM.Iterable\"],\n    \"module\": \"ESNext\",\n    \"skipLibCheck\": true,\n    \"moduleResolution\": \"bundler\",\n    \"allowImportingTsExtensions\": true,\n    \"resolveJsonModule\": true,\n    \"isolatedModules\": true,\n    \"noEmit\": true,\n    \"jsx\": \"react-jsx\",\n    \"strict\": true\n  },\n  \"include\": [\"src\"]\n}"
+    },
+    "server.js": {
+      "content": "import express from 'express'\nimport cors from 'cors'\n\nconst app = express()\nconst PORT = 3001\n\napp.use(cors())\napp.use(express.json())\n\nconst products = [\n  { id: 1, name: 'Laptop', price: 999 },\n  { id: 2, name: 'Mouse', price: 29 },\n  { id: 3, name: 'Keyboard', price: 79 }\n]\n\napp.get('/api/products', (req, res) => res.json(products))\n\nlet cart = []\napp.get('/api/cart', (req, res) => res.json(cart))\napp.post('/api/cart', (req, res) => {\n  const { productId } = req.body\n  const product = products.find(p => p.id === productId)\n  if (product) {\n    cart.push(product)\n    res.json(cart)\n  } else {\n    res.status(404).json({ error: 'Product not found' })\n  }\n})\n\napp.listen(PORT, () => console.log(`API on port ${PORT}`))"
+    },
+    "index.html": {
+      "content": "<!DOCTYPE html>\n<html>\n  <head>\n    <title>E‑Commerce Dashboard</title>\n  </head>\n  <body>\n    <div id=\"root\"></div>\n    <script type=\"module\" src=\"/src/main.tsx\"></script>\n  </body>\n</html>"
+    },
+    "src/main.tsx": {
+      "content": "import React from 'react'\nimport ReactDOM from 'react-dom/client'\nimport { BrowserRouter } from 'react-router-dom'\nimport App from './App'\nimport './index.css'\n\nReactDOM.createRoot(document.getElementById('root')!).render(\n  <React.StrictMode>\n    <BrowserRouter>\n      <App />\n    </BrowserRouter>\n  </React.StrictMode>\n)"
+    },
+    "src/App.tsx": {
+      "content": "import { Routes, Route, Link } from 'react-router-dom'\nimport Products from './pages/Products'\nimport Cart from './pages/Cart'\nimport Orders from './pages/Orders'\nimport './App.css'\n\nexport default function App() {\n  return (\n    <div className=\"app\">\n      <nav>\n        <Link to=\"/\">Products</Link>\n        <Link to=\"/cart\">Cart</Link>\n        <Link to=\"/orders\">Orders</Link>\n      </nav>\n      <main>\n        <Routes>\n          <Route path=\"/\" element={<Products />} />\n          <Route path=\"/cart\" element={<Cart />} />\n          <Route path=\"/orders\" element={<Orders />} />\n        </Routes>\n      </main>\n    </div>\n  )\n}"
+    },
+    "src/App.css": {
+      "content": ".app { font-family: sans-serif; }\nnav { background: #2c3e50; padding: 1rem; display: flex; gap: 2rem; }\nnav a { color: white; text-decoration: none; }\nmain { padding: 2rem; max-width: 1200px; margin: 0 auto; }"
+    },
+    "src/index.css": {
+      "content": "body { margin: 0; background: #f5f7fa; }"
+    },
+    "src/pages/Products.tsx": {
+      "content": "import { useEffect, useState } from 'react'\nimport { useCartStore } from '../store/cart'\nimport ProductCard from '../components/ProductCard'\n\nexport default function Products() {\n  const [products, setProducts] = useState([])\n  const addToCart = useCartStore(s => s.addToCart)\n\n  useEffect(() => {\n    fetch('/api/products')\n      .then(r => r.json())\n      .then(setProducts)\n  }, [])\n\n  return (\n    <div>\n      <h1>Products</h1>\n      <div className=\"product-grid\">\n        {products.map(p => (\n          <ProductCard key={p.id} product={p} onAdd={addToCart} />\n        ))}\n      </div>\n    </div>\n  )\n}"
+    },
+    "src/pages/Cart.tsx": {
+      "content": "import { useCartStore } from '../store/cart'\n\nexport default function Cart() {\n  const { items, total } = useCartStore()\n  return (\n    <div>\n      <h1>Shopping Cart</h1>\n      {items.length === 0 ? <p>Cart is empty</p> : (\n        <>\n          <ul>\n            {items.map((item, i) => (\n              <li key={i}>{item.name} - ${item.price}</li>\n            ))}\n          </ul>\n          <h3>Total: ${total}</h3>\n        </>\n      )}\n    </div>\n  )\n}"
+    },
+    "src/pages/Orders.tsx": {
+      "content": "export default function Orders() {\n  return <h1>Orders (Coming Soon)</h1>\n}"
+    },
+    "src/components/ProductCard.tsx": {
+      "content": "import './ProductCard.css'\n\nexport default function ProductCard({ product, onAdd }) {\n  return (\n    <div className=\"card\">\n      <h3>{product.name}</h3>\n      <p>${product.price}</p>\n      <button onClick={() => onAdd(product)}>Add to Cart</button>\n    </div>\n  )\n}"
+    },
+    "src/components/ProductCard.css": {
+      "content": ".card { background: white; padding: 1rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }\n.card button { background: #3498db; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; }"
+    },
+    "src/store/cart.ts": {
+      "content": "import { create } from 'zustand'\n\ninterface CartState {\n  items: any[]\n  total: number\n  addToCart: (product: any) => void\n}\n\nexport const useCartStore = create<CartState>((set) => ({\n  items: [],\n  total: 0,\n  addToCart: (product) => set((state) => ({\n    items: [...state.items, product],\n    total: state.total + product.price\n  }))\n}))"
+    }
+  }
+}

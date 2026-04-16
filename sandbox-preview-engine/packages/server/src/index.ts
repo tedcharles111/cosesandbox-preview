@@ -18,6 +18,27 @@ interface CreateSandboxRequest {
   template?: string;
 }
 
+// Helper to patch Vite config to allow all hosts
+function patchViteConfig(content: string): string {
+  if (content.includes('allowedHosts')) return content;
+  
+  // For vite.config.js or .ts
+  if (content.includes('server:')) {
+    // Insert allowedHosts: true into existing server object
+    return content.replace(
+      /server:\s*\{/,
+      'server: {\n    allowedHosts: true,'
+    );
+  } else if (content.includes('plugins:')) {
+    // Add server block if missing
+    return content.replace(
+      /(plugins:\s*\[[^\]]*\])/,
+      '$1,\n  server: {\n    allowedHosts: true,\n    port: 5173\n  }'
+    );
+  }
+  return content;
+}
+
 app.post('/api/sandbox', async (req, res) => {
   try {
     const { files, template = 'node' } = req.body as CreateSandboxRequest;
@@ -29,16 +50,26 @@ app.post('/api/sandbox', async (req, res) => {
     } as any);
     console.log(`✅ Sandbox created, ID: ${sandbox.id}`);
     
-    console.log('⏳ Waiting 5 seconds for VM to initialize...');
+    console.log('⏳ Waiting 5 seconds for VM...');
     await new Promise(resolve => setTimeout(resolve, 5000));
     
-    console.log('🔌 Connecting to sandbox...');
+    console.log('🔌 Connecting...');
     const client = await sandbox.connect();
     console.log('✅ Connected');
 
     if (files && Object.keys(files).length > 0) {
       console.log(`📝 Writing ${Object.keys(files).length} files...`);
-      const writeOps = Object.entries(files).map(([path, file]) => ({
+      
+      // Patch any vite.config file on the fly
+      const patchedFiles = { ...files };
+      for (const [path, file] of Object.entries(patchedFiles)) {
+        if (path === 'vite.config.js' || path === 'vite.config.ts') {
+          file.content = patchViteConfig(file.content);
+          console.log(`🔧 Patched ${path} to allow all hosts`);
+        }
+      }
+      
+      const writeOps = Object.entries(patchedFiles).map(([path, file]) => ({
         path,
         content: file.content,
       }));
@@ -67,7 +98,7 @@ app.post('/api/sandbox', async (req, res) => {
           console.log(`⏳ Waiting for port ${p}...`);
           await client.ports.waitForPort(p, { timeoutMs: 20000 });
           previewPort = p;
-          console.log(`✅ Port ${p} is ready`);
+          console.log(`✅ Port ${p} ready`);
           break;
         } catch (e) {
           console.log(`❌ Port ${p} not ready`);
