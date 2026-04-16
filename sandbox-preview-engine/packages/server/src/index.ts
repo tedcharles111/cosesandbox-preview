@@ -18,73 +18,84 @@ interface CreateSandboxRequest {
   template?: string;
 }
 
-// Helper to patch Vite config to allow all hosts
-function patchViteConfig(content: string): string {
-  if (content.includes('allowedHosts')) return content;
+function forceViteAllowedHosts(files: Record<string, { content: string }>) {
+  // Detect if the project uses Vite by checking dependencies
+  const hasVite = Object.values(files).some(file => 
+    file.content.includes('"vite"') || file.content.includes("'vite'")
+  );
   
-  // For vite.config.js or .ts
-  if (content.includes('server:')) {
-    // Insert allowedHosts: true into existing server object
-    return content.replace(
-      /server:\s*\{/,
-      'server: {\n    allowedHosts: true,'
-    );
-  } else if (content.includes('plugins:')) {
-    // Add server block if missing
-    return content.replace(
-      /(plugins:\s*\[[^\]]*\])/,
-      '$1,\n  server: {\n    allowedHosts: true,\n    port: 5173\n  }'
-    );
+  if (hasVite) {
+    // Overwrite any existing vite config with a bulletproof version
+    files['vite.config.js'] = {
+      content: `import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    port: 5173,
+    allowedHosts: true,
+    proxy: {
+      '/api': 'http://localhost:3001'
+    }
   }
-  return content;
+})`
+    };
+    files['vite.config.ts'] = {
+      content: `import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    port: 5173,
+    allowedHosts: true,
+    proxy: {
+      '/api': 'http://localhost:3001'
+    }
+  }
+})`
+    };
+  }
 }
 
 app.post('/api/sandbox', async (req, res) => {
   try {
-    const { files, template = 'node' } = req.body as CreateSandboxRequest;
+    const { files = {}, template = 'node' } = req.body as CreateSandboxRequest;
     
     console.log(`🚀 Creating sandbox with template: ${template}`);
     const sandbox = await sdk.sandboxes.create({
       template: template as any,
       privacy: 'public',
     } as any);
-    console.log(`✅ Sandbox created, ID: ${sandbox.id}`);
+    console.log(`✅ Sandbox ID: ${sandbox.id}`);
     
-    console.log('⏳ Waiting 5 seconds for VM...');
     await new Promise(resolve => setTimeout(resolve, 5000));
     
-    console.log('🔌 Connecting...');
     const client = await sandbox.connect();
     console.log('✅ Connected');
 
-    if (files && Object.keys(files).length > 0) {
+    if (Object.keys(files).length > 0) {
+      // Force‑fix Vite config before writing
+      forceViteAllowedHosts(files as any);
+      
       console.log(`📝 Writing ${Object.keys(files).length} files...`);
-      
-      // Patch any vite.config file on the fly
-      const patchedFiles = { ...files };
-      for (const [path, file] of Object.entries(patchedFiles)) {
-        if (path === 'vite.config.js' || path === 'vite.config.ts') {
-          file.content = patchViteConfig(file.content);
-          console.log(`🔧 Patched ${path} to allow all hosts`);
-        }
-      }
-      
-      const writeOps = Object.entries(patchedFiles).map(([path, file]) => ({
+      const writeOps = Object.entries(files).map(([path, file]) => ({
         path,
-        content: file.content,
+        content: (file as any).content,
       }));
       await client.fs.batchWrite(writeOps);
       console.log('✅ Files written');
     }
 
-    const hasPackageJson = files && files['package.json'];
+    const hasPackageJson = files['package.json'];
     let previewPort = 3000;
     
     if (hasPackageJson) {
       console.log('📦 Installing dependencies...');
       await client.commands.run('npm install');
       
-      const pkg = JSON.parse(files!['package.json'].content);
+      const pkg = JSON.parse((files['package.json'] as any).content);
       let startCommand = 'npm start';
       if (pkg.scripts?.dev) startCommand = 'npm run dev';
       else if (pkg.scripts?.start) startCommand = 'npm start';
@@ -95,17 +106,12 @@ app.post('/api/sandbox', async (req, res) => {
       const portsToTry = [5173, 3000, 3001];
       for (const p of portsToTry) {
         try {
-          console.log(`⏳ Waiting for port ${p}...`);
           await client.ports.waitForPort(p, { timeoutMs: 20000 });
           previewPort = p;
-          console.log(`✅ Port ${p} ready`);
           break;
-        } catch (e) {
-          console.log(`❌ Port ${p} not ready`);
-        }
+        } catch {}
       }
     } else {
-      console.log('📄 Static project – using npx serve...');
       client.commands.runBackground('npx --yes serve . -l 3000');
       await client.ports.waitForPort(3000, { timeoutMs: 30000 });
       previewPort = 3000;
